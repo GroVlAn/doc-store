@@ -15,12 +15,18 @@ type HTTP struct {
 	WriteTimeout      time.Duration `yaml:"write_timeout"`
 }
 
+type Mongo struct {
+	URI string `env:"MONGO_URI" env-required:"true"`
+}
+
 type Service struct {
 	DefaultTimeout time.Duration `yaml:"default_timeout"`
 }
 
 type Config struct {
-	HTTP HTTP `yaml:"http"`
+	HTTP    HTTP    `yaml:"http"`
+	Service Service `yaml:"service"`
+	Mongo   Mongo   `yaml:"mongo"`
 }
 
 func New(path string) (*Config, error) {
