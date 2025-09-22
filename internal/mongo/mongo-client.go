@@ -33,6 +33,8 @@ func (mc *MongoClient) Connect(ctx context.Context) error {
 		return fmt.Errorf("checking mongo connection: %w", err)
 	}
 
+	mc.client = client
+
 	return nil
 }
 

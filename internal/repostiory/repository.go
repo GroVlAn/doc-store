@@ -47,8 +47,11 @@ func (r *Repository) User(ctx context.Context, login string) (core.User, error) 
 	var user core.User
 
 	err := r.userCollection.FindOne(ctx, filter).Decode(&user)
-	if err != nil {
+	if err != nil && err != mongo.ErrNoDocuments {
 		return core.User{}, &e.ErrFind{Msg: "user not found", Err: err}
+	}
+	if err != nil && err == mongo.ErrNoDocuments {
+		return core.User{}, e.ErrUserNotFound
 	}
 
 	return user, nil

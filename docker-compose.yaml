@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  doc-store:
+    container_name: "doc-store"
+    build: .
+    command: build/doc-store
+    restart: always
+    ports:
+      - "8080:8080"
+    networks:
+      - mongo
+    depends_on:
+      - db_doc_store
+
+  db_doc_store:
+    container_name: "db_doc_store"
+    image: mongo
+    volumes:
+      - ./db_doc_store:/data/db
+    ports:
+      - "27017:27017"
+    restart: always
+    networks:
+      mongo:
+        aliases:
+          - doc_store_database
+
+  mongo_express:
+    container_name: "mongo-express"
+    image: mongo-express
+    environment:
+      ME_CONFIG_MONGODB_SERVER: "db_doc_store"
+      ME_CONFIG_BASICAUTH_USERNAME: ${DB_TASKS_USERNAME}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${DB_TASKS_PASSWORD}
+    ports:
+      - "8880:8081"
+    restart: always
+    networks:
+      - mongo
+    depends_on:
+      - db_doc_store
+
+networks:
+  mongo:
+    driver: bridge

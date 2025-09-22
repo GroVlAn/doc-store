@@ -117,6 +117,7 @@ func (h *Handler) sendErrorResponse(w http.ResponseWriter, err error) {
 
 	status, msg := h.handleError(err)
 
+	res.Error = &core.ErrorResponse{}
 	res.Error.Code = status
 	res.Error.Text = msg
 
@@ -129,13 +130,17 @@ func (h *Handler) handleError(err error) (int, string) {
 
 	switch {
 	case errors.As(err, &errFind):
-		h.l.Error().Err(err.(*e.ErrFind).Unwrap()).Msg("failed to find user")
+		h.l.Error().Err(errFind.Unwrap()).Msg("failed to find user")
 
-		return http.StatusNotFound, err.(*e.ErrFind).Error()
+		return http.StatusNotFound, errFind.Error()
 	case errors.As(err, &errInsert):
-		h.l.Error().Err(err.(*e.ErrInsert).Unwrap()).Msg("failed to create user")
+		h.l.Error().Err(errInsert.Unwrap()).Msg("failed to create user")
 
-		return http.StatusInternalServerError, err.(*e.ErrInsert).Error()
+		return http.StatusInternalServerError, errFind.Error()
+	case errors.Is(err, e.ErrInvalidLogin):
+		h.l.Error().Err(err).Msg("failed to verify login")
+
+		return http.StatusBadRequest, err.Error()
 	case errors.Is(err, e.ErrInvalidPassword):
 		h.l.Error().Err(err).Msg("failed to verify password")
 

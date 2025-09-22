@@ -172,11 +172,15 @@ func (s *Service) deleteTokenWithError(ctx context.Context, token string) error 
 
 func (s *Service) verifyNewUser(ctx context.Context, user core.User) error {
 	userFromDB, err := s.UserRepo.User(ctx, user.Login)
-	if err != nil {
+	if err != nil && err != e.ErrUserNotFound {
 		return fmt.Errorf("getting user: %w", err)
 	}
 	if len(userFromDB.ID) > 0 {
 		return e.ErrUserAlreadyExist
+	}
+
+	if len(user.Login) == 0 {
+		return e.ErrInvalidLogin
 	}
 
 	valid := s.validatePassword(user.Password)
@@ -227,6 +231,7 @@ func (s *Service) validatePassword(pswd string) bool {
 			isSymbol = true
 		}
 	}
+
 	return isNumber && isLower && isUpper && isSymbol
 }
 
@@ -257,9 +262,9 @@ func (s *Service) createAccessToken(user core.User) (core.AccessToken, error) {
 		"exp":     accessToken.EndTTl.Unix(),
 	}
 
-	jwtToken := jwt.NewWithClaims(jwt.SigningMethodES256, payload)
+	jwtToken := jwt.NewWithClaims(jwt.SigningMethodHS256, payload)
 
-	t, err := jwtToken.SignedString(s.SecretKey)
+	t, err := jwtToken.SignedString([]byte(s.SecretKey))
 	if err != nil {
 		return core.AccessToken{}, fmt.Errorf("creating access token: %w", err)
 	}

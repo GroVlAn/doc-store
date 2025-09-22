@@ -3,6 +3,7 @@ package e
 import "errors"
 
 var ErrInvalidPassword = errors.New("invalid password")
+var ErrInvalidLogin = errors.New("invalid login")
 var ErrUserAlreadyExist = errors.New("user already exist")
 var ErrUserNotFound = errors.New("user not found")
 var ErrInvalidToken = errors.New("invalid token")
