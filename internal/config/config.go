@@ -21,6 +21,9 @@ type Mongo struct {
 
 type Service struct {
 	DefaultTimeout time.Duration `yaml:"default_timeout"`
+	HashCost       int           `yaml:"hash_cost"`
+	TokenEndTTl    time.Duration `yaml:"token_end_ttl"`
+	SecretKey      string        `env:"SECRET_KEY" env-required:"true"`
 }
 
 type Config struct {

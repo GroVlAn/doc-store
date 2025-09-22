@@ -11,7 +11,10 @@ import (
 
 	"github.com/GroVlAn/doc-store/internal/config"
 	"github.com/GroVlAn/doc-store/internal/handler"
+	mongoclient "github.com/GroVlAn/doc-store/internal/mongo"
+	repository "github.com/GroVlAn/doc-store/internal/repostiory"
 	"github.com/GroVlAn/doc-store/internal/server"
+	"github.com/GroVlAn/doc-store/internal/service"
 	"github.com/rs/zerolog"
 )
 
@@ -41,10 +44,28 @@ func main() {
 
 	cfg, err := config.New(*configPath)
 	if err != nil {
-		l.Fatal().Err(err).Msg("Failed to load configuration")
+		l.Fatal().Err(err).Msg("failed to load configuration")
 	}
 
-	h := handler.New(l)
+	mgc := mongoclient.New(cfg.Mongo.URI)
+
+	err = mgc.Connect(ctx)
+	if err != nil {
+		l.Fatal().Err(err).Msg("failed to connect to mongo db")
+	}
+
+	r := repository.New(mgc.Client())
+
+	s := service.New(service.Deps{
+		UserRepo:       r,
+		TokenRepo:      r,
+		DefaultTimeout: cfg.Service.DefaultTimeout,
+		HashCost:       cfg.Service.HashCost,
+		TokenEndTTL:    cfg.Service.TokenEndTTl,
+		SecretKey:      cfg.Service.SecretKey,
+	})
+
+	h := handler.New(l, s)
 
 	server := server.New(
 		h.Handler(),
