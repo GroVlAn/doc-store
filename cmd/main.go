@@ -56,16 +56,20 @@ func main() {
 
 	r := repository.New(mgc.Client())
 
+	fr := repository.NewFileRepository()
+
 	s := service.New(service.Deps{
 		UserRepo:       r,
 		TokenRepo:      r,
+		DocumentRepo:   r,
+		FileRepo:       fr,
 		DefaultTimeout: cfg.Service.DefaultTimeout,
 		HashCost:       cfg.Service.HashCost,
 		TokenEndTTL:    cfg.Service.TokenEndTTl,
 		SecretKey:      cfg.Service.SecretKey,
 	})
 
-	h := handler.New(l, s)
+	h := handler.New(l, s, s)
 
 	server := server.New(
 		h.Handler(),

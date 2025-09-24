@@ -7,6 +7,7 @@ import (
 	"github.com/GroVlAn/doc-store/internal/core/e"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
 const (
@@ -98,6 +99,70 @@ func (r *Repository) DeleteToken(ctx context.Context, token string) error {
 	_, err := r.tokenCollection.DeleteOne(ctx, filter)
 	if err != nil {
 		return &e.ErrDelete{Msg: "failed delete token", Err: err}
+	}
+
+	return nil
+}
+
+func (r *Repository) CreateDocument(ctx context.Context, document core.Document) error {
+	_, err := r.documentCollection.InsertOne(ctx, document)
+	if err != nil {
+		return &e.ErrInsert{Msg: "failed create document", Err: err}
+	}
+
+	return nil
+}
+
+func (r *Repository) Document(ctx context.Context, userID string, documentID string) (core.Document, error) {
+	filter := bson.M{
+		"_id": documentID,
+		"grant": bson.M{
+			"$in": []string{documentID},
+		},
+	}
+
+	var document core.Document
+
+	err := r.documentCollection.FindOne(ctx, filter).Decode(&document)
+	if err != nil {
+		return core.Document{}, &e.ErrFind{Msg: "failed to find document", Err: err}
+	}
+
+	return document, nil
+}
+
+func (r *Repository) DocumentsList(ctx context.Context, df core.DocumentFilter) ([]core.Document, error) {
+	filter := bson.M{
+		"grant": bson.M{
+			"$in": []string{df.Login},
+		},
+		df.Key: df.Value,
+	}
+	findOptions := options.Find()
+	findOptions.SetSort(bson.D{{Key: "Name", Value: -1}, {Key: "created", Value: -1}})
+	findOptions.SetLimit(df.Limit)
+
+	cursor, err := r.documentCollection.Find(ctx, filter, findOptions)
+	defer cursor.Close(ctx)
+	if err != nil {
+		return nil, &e.ErrFind{Msg: "failed find documents", Err: err}
+	}
+
+	var documentsList []core.Document
+
+	if err := cursor.All(ctx, &documentsList); err != nil {
+		return nil, &e.ErrFind{Msg: "failed find documents", Err: err}
+	}
+
+	return documentsList, nil
+}
+
+func (r *Repository) DeleteDocument(ctx context.Context, userID string, documentID string) error {
+	filter := bson.D{{Key: "_id", Value: documentID}}
+
+	_, err := r.documentCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return &e.ErrDelete{Msg: "failed delete document", Err: err}
 	}
 
 	return nil

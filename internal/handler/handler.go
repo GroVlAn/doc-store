@@ -16,6 +16,7 @@ const (
 	addrPath     = "/api"
 	registerPath = "/register"
 	authPath     = "/auth"
+	documentPath = "/docs"
 )
 
 type userService interface {
@@ -24,15 +25,24 @@ type userService interface {
 	VerifyAccessToken(token string) error
 }
 
-type Handler struct {
-	l           zerolog.Logger
-	userService userService
+type documentService interface {
+	CreateDocument(document core.Document, file []byte) error
+	Document(token string, documentID string) (core.Document, string, error)
+	DocumentsList(token string, filter core.DocumentFilter) ([]core.Document, error)
+	DeleteDocument(token string, documentID string) error
 }
 
-func New(l zerolog.Logger, userService userService) *Handler {
+type Handler struct {
+	l               zerolog.Logger
+	userService     userService
+	documentService documentService
+}
+
+func New(l zerolog.Logger, userService userService, documentService documentService) *Handler {
 	return &Handler{
-		l:           l,
-		userService: userService,
+		l:               l,
+		userService:     userService,
+		documentService: documentService,
 	}
 }
 
@@ -44,72 +54,17 @@ func (h *Handler) Handler() *chi.Mux {
 	r.Route(addrPath, func(r chi.Router) {
 		r.Post(registerPath, h.register)
 		r.Get(authPath, h.auth)
+
+		r.Post(documentPath, h.createDocument)
+		r.Get(documentPath, h.documentsList)
+
+		r.Route(documentPath+"/{docID}", func(r chi.Router) {
+			r.Get("/", h.document)
+			r.Delete("/", h.deleteDocument)
+		})
 	})
 
 	return r
-}
-
-func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
-	body := r.Body
-	defer h.closeRequestBody(body)
-
-	var (
-		user core.User
-		res  core.Response = core.Response{}
-	)
-
-	err := json.NewDecoder(body).Decode(&user)
-	if err != nil {
-		h.sendErrorResponse(w, err)
-
-		return
-	}
-
-	err = h.userService.Register(user)
-	if err != nil {
-		h.sendErrorResponse(w, err)
-
-		return
-	}
-
-	res.Response = struct {
-		Login string `json:"login"`
-	}{
-		Login: user.Login,
-	}
-
-	h.sendResponse(w, res, http.StatusCreated)
-}
-
-func (h *Handler) auth(w http.ResponseWriter, r *http.Request) {
-	body := r.Body
-	defer h.closeRequestBody(body)
-
-	var user core.User
-
-	err := json.NewDecoder(body).Decode(&user)
-	if err != nil {
-		h.sendErrorResponse(w, err)
-
-		return
-	}
-
-	token, err := h.userService.Auth(user)
-	if err != nil {
-		h.sendErrorResponse(w, err)
-
-		return
-	}
-
-	res := core.Response{}
-
-	res.Response = struct {
-		Token string `json:"token"`
-	}{
-		Token: token,
-	}
-
-	h.sendResponse(w, res, http.StatusOK)
 }
 
 func (h *Handler) sendErrorResponse(w http.ResponseWriter, err error) {
