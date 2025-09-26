@@ -4,14 +4,14 @@ import "time"
 
 type DocumentRequest struct {
 	Meta Document `json:"meta"`
-	Json []byte   `json:"json"`
+	Json []byte   `json:"json,omitempty"`
 	File []byte   `json:"file"`
 }
 
 type Document struct {
 	ID      string    `json:"-" bson:"_id"`
 	Name    string    `json:"name" bson:"name"`
-	Mine    string    `json:"mine" bson:"mine"`
+	Mime    string    `json:"mime" bson:"mime"`
 	File    bool      `json:"file" bson:"file"`
 	Token   string    `json:"token" bson:"-"`
 	Json    []byte    `json:"-" bson:"json"`

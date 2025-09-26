@@ -20,6 +20,8 @@ services:
       - ./db_doc_store:/data/db
     ports:
       - "27017:27017"
+    expose:
+      - 27017
     restart: always
     networks:
       mongo:

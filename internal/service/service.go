@@ -20,9 +20,10 @@ type tokenRepo interface {
 
 type documentRepo interface {
 	CreateDocument(ctx context.Context, document core.Document) error
-	Document(ctx context.Context, userID string, documentID string) (core.Document, error)
+	Document(ctx context.Context, login string, documentID string) (core.Document, error)
 	DocumentsList(ctx context.Context, df core.DocumentFilter) ([]core.Document, error)
-	DeleteDocument(ctx context.Context, userID string, documentID string) error
+	DocumentByName(ctx context.Context, userID string, name string) (core.Document, error)
+	DeleteDocument(ctx context.Context, login string, documentID string) error
 }
 
 type fileRepo interface {

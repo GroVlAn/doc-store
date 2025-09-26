@@ -6,3 +6,5 @@ http:
 
 service:
   default_timeout: 5s
+  hash_cost: 14
+  token_end_ttl: 24h

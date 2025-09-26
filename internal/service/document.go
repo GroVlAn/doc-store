@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -16,18 +17,33 @@ func (s *Service) CreateDocument(document core.Document, file []byte) error {
 
 	tokenDetails, err := s.parseToken(document.Token)
 	if err != nil {
-		return err
+		return &e.ErrInvalidToken{Msg: "invalid token", Err: err}
 	}
 
 	document.ID = uuid.NewString()
 	document.Created = time.Now()
-	document.Grant = append(document.Grant, tokenDetails["user_id"].(string))
+	document.Grant = append(document.Grant, tokenDetails["login"].(string))
+
+	existDocument, err := s.DocumentRepo.DocumentByName(ctx, tokenDetails["login"].(string), document.Name)
+	if err != nil && !errors.Is(err, e.ErrNoDocuments) {
+		return fmt.Errorf("getting error by name: %w", err)
+	}
+
+	if len(existDocument.ID) > 0 {
+		err = s.DocumentRepo.DeleteDocument(ctx, tokenDetails["login"].(string), existDocument.ID)
+		if err != nil {
+			return fmt.Errorf("deleting document: %w", err)
+		}
+	}
 
 	err = s.DocumentRepo.CreateDocument(ctx, document)
 	if err != nil {
 		return fmt.Errorf("creating document: %w", err)
 	}
 
+	if file == nil {
+		return nil
+	}
 	err = s.createFile(tokenDetails["user_id"].(string), document.Name, file)
 	if err != nil {
 		return fmt.Errorf("creating file: %w", err)
@@ -42,10 +58,10 @@ func (s *Service) Document(token string, documentID string) (core.Document, stri
 
 	tokenDetails, err := s.parseToken(token)
 	if err != nil {
-		return core.Document{}, "", err
+		return core.Document{}, "", &e.ErrInvalidToken{Msg: "invalid token", Err: err}
 	}
 
-	document, err := s.DocumentRepo.Document(ctx, tokenDetails["user_id"].(string), documentID)
+	document, err := s.DocumentRepo.Document(ctx, tokenDetails["login"].(string), documentID)
 	if err != nil {
 		return core.Document{}, "", e.ErrNoDocuments
 	}
@@ -64,13 +80,10 @@ func (s *Service) DocumentsList(token string, filter core.DocumentFilter) ([]cor
 
 	tokenDetails, err := s.parseToken(token)
 	if err != nil {
-		return nil, err
+		return nil, &e.ErrInvalidToken{Msg: "invalid token", Err: err}
 	}
 
-	err = s.setLoginToFilter(ctx, tokenDetails["user_id"].(string), &filter)
-	if err != nil {
-		return nil, fmt.Errorf("setting login for filter documents: %w", err)
-	}
+	filter.Login = tokenDetails["login"].(string)
 
 	documentsList, err := s.DocumentRepo.DocumentsList(ctx, filter)
 	if err != nil {
@@ -89,7 +102,7 @@ func (s *Service) DeleteDocument(token string, documentID string) error {
 		return err
 	}
 
-	document, err := s.DocumentRepo.Document(ctx, tokenDetails["user_id"].(string), documentID)
+	document, err := s.DocumentRepo.Document(ctx, tokenDetails["login"].(string), documentID)
 	if err != nil {
 		return e.ErrNoDocuments
 	}
@@ -98,7 +111,7 @@ func (s *Service) DeleteDocument(token string, documentID string) error {
 		return fmt.Errorf("deleting file: %w", err)
 	}
 
-	err = s.DocumentRepo.DeleteDocument(ctx, tokenDetails["user_id"].(string), documentID)
+	err = s.DocumentRepo.DeleteDocument(ctx, tokenDetails["login"].(string), documentID)
 	if err != nil {
 		return fmt.Errorf("deleting document: %w", err)
 	}

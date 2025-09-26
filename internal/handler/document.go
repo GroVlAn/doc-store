@@ -2,10 +2,12 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/GroVlAn/doc-store/internal/core"
+	"github.com/GroVlAn/doc-store/internal/core/e"
 	"github.com/go-chi/chi"
 )
 
@@ -21,30 +23,37 @@ func (h *Handler) createDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.userService.VerifyAccessToken(documentRequest.Meta.Token); err != nil {
+		h.sendErrorResponse(w, err)
+		return
+	}
+
 	jsonValue := r.FormValue("json")
 
-	b, err := json.Marshal([]byte(jsonValue))
-	if err != nil {
-		h.sendErrorResponse(w, err)
+	var jsonData *interface{}
+	if len(jsonValue) > 0 {
+		if err := json.Unmarshal([]byte(jsonValue), &jsonData); err != nil {
+			h.sendErrorResponse(w, err)
+			return
+		}
 
-		return
+		documentRequest.Meta.Json = []byte(jsonValue)
 	}
-
-	documentRequest.Meta.Json = b
 
 	file, header, err := r.FormFile("file")
-	if err != nil {
-		h.sendErrorResponse(w, err)
+	var b []byte
+	if err == nil {
+		defer file.Close()
 
-		return
-	}
-	defer file.Close()
+		b, err := io.ReadAll(file)
+		if err != nil {
+			h.sendErrorResponse(w, err)
 
-	b, err = io.ReadAll(file)
-	if err != nil {
-		h.sendErrorResponse(w, err)
+			return
+		}
 
-		return
+		documentRequest.Meta.Name = header.Filename
+		documentRequest.Meta.Mime = http.DetectContentType(b)
 	}
 
 	if err := h.documentService.CreateDocument(documentRequest.Meta, b); err != nil {
@@ -53,20 +62,21 @@ func (h *Handler) createDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json, err := json.Marshal([]byte(documentRequest.Json))
-	if err != nil {
-		h.sendErrorResponse(w, err)
-
-		return
-	}
-
 	res := core.Response{}
-	res.Response = struct {
-		Json interface{} `json:"json"`
-		File string      `json:"file"`
-	}{
-		Json: json,
-		File: header.Filename,
+	if header != nil {
+		res.Response = struct {
+			Json *interface{} `json:"json,omitempty"`
+			File string       `json:"file"`
+		}{
+			Json: jsonData,
+			File: header.Filename,
+		}
+	} else {
+		res.Response = struct {
+			Json *interface{} `json:"json,omitempty"`
+		}{
+			Json: jsonData,
+		}
 	}
 
 	h.sendResponse(w, res, http.StatusCreated)
@@ -83,8 +93,16 @@ func (h *Handler) document(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(body).Decode(&tokenBody); err != nil {
-		h.sendErrorResponse(w, err)
+		h.sendErrorResponse(w, &e.ErrInvalidToken{
+			Msg: "invalid token",
+			Err: fmt.Errorf("decoding token body: %w", err),
+		})
 
+		return
+	}
+
+	if err := h.userService.VerifyAccessToken(tokenBody.Token); err != nil {
+		h.sendErrorResponse(w, err)
 		return
 	}
 
@@ -109,8 +127,13 @@ func (h *Handler) documentsList(w http.ResponseWriter, r *http.Request) {
 	var docFilter core.DocumentFilter
 
 	if err := json.NewDecoder(body).Decode(&docFilter); err != nil {
-		h.sendErrorResponse(w, err)
+		h.sendErrorResponse(w, e.ErrEmptyBody)
 
+		return
+	}
+
+	if err := h.userService.VerifyAccessToken(docFilter.Token); err != nil {
+		h.sendErrorResponse(w, err)
 		return
 	}
 
@@ -123,7 +146,7 @@ func (h *Handler) documentsList(w http.ResponseWriter, r *http.Request) {
 
 	res := core.Response{}
 	res.Data = struct {
-		Docs []core.Document `json:"docs"`
+		Docs []core.Document `json:"docs,omitempty"`
 	}{
 		Docs: docList,
 	}
@@ -142,8 +165,13 @@ func (h *Handler) deleteDocument(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(body).Decode(&tokenBody); err != nil {
-		h.sendErrorResponse(w, err)
+		h.sendErrorResponse(w, &e.ErrInvalidToken{Msg: "invalid token", Err: err})
 
+		return
+	}
+
+	if err := h.userService.VerifyAccessToken(tokenBody.Token); err != nil {
+		h.sendErrorResponse(w, err)
 		return
 	}
 

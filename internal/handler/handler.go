@@ -82,8 +82,13 @@ func (h *Handler) sendErrorResponse(w http.ResponseWriter, err error) {
 func (h *Handler) handleError(err error) (int, string) {
 	var errFind *e.ErrFind
 	var errInsert *e.ErrInsert
+	var errInvalidToken *e.ErrInvalidToken
 
 	switch {
+	case errors.As(err, &errInvalidToken):
+		h.l.Error().Err(errInvalidToken.Unwrap()).Msg("failed verify token")
+
+		return http.StatusUnauthorized, err.Error()
 	case errors.As(err, &errFind):
 		h.l.Error().Err(errFind.Unwrap()).Msg("failed to find user")
 
@@ -106,6 +111,10 @@ func (h *Handler) handleError(err error) (int, string) {
 		return http.StatusBadRequest, err.Error()
 	case errors.Is(err, e.ErrUserNotFound):
 		h.l.Error().Err(err).Msg("failed to find exited user")
+
+		return http.StatusNotFound, err.Error()
+	case errors.Is(err, e.ErrNoDocuments):
+		h.l.Error().Err(err).Msg("document not found")
 
 		return http.StatusNotFound, err.Error()
 	default:

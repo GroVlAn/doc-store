@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/GroVlAn/doc-store/internal/core"
 	"github.com/GroVlAn/doc-store/internal/core/e"
@@ -113,11 +114,11 @@ func (r *Repository) CreateDocument(ctx context.Context, document core.Document)
 	return nil
 }
 
-func (r *Repository) Document(ctx context.Context, userID string, documentID string) (core.Document, error) {
+func (r *Repository) Document(ctx context.Context, login string, documentID string) (core.Document, error) {
 	filter := bson.M{
 		"_id": documentID,
 		"grant": bson.M{
-			"$in": []string{documentID},
+			"$in": []string{login},
 		},
 	}
 
@@ -136,8 +137,12 @@ func (r *Repository) DocumentsList(ctx context.Context, df core.DocumentFilter) 
 		"grant": bson.M{
 			"$in": []string{df.Login},
 		},
-		df.Key: df.Value,
 	}
+
+	if len(df.Key) > 0 && len(df.Value) > 0 {
+		filter[df.Key] = df.Value
+	}
+
 	findOptions := options.Find()
 	findOptions.SetSort(bson.D{{Key: "Name", Value: -1}, {Key: "created", Value: -1}})
 	findOptions.SetLimit(df.Limit)
@@ -157,8 +162,33 @@ func (r *Repository) DocumentsList(ctx context.Context, df core.DocumentFilter) 
 	return documentsList, nil
 }
 
-func (r *Repository) DeleteDocument(ctx context.Context, userID string, documentID string) error {
-	filter := bson.D{{Key: "_id", Value: documentID}}
+func (r *Repository) DocumentByName(ctx context.Context, login string, name string) (core.Document, error) {
+	filter := bson.M{
+		"grant": bson.M{
+			"$in": []string{login},
+		},
+		"name": name,
+	}
+
+	var document core.Document
+	err := r.documentCollection.FindOne(ctx, filter).Decode(&document)
+	switch {
+	case err != nil && errors.Is(err, mongo.ErrNoDocuments):
+		return core.Document{}, e.ErrNoDocuments
+	case err != nil:
+		return core.Document{}, &e.ErrFind{Msg: "failed get document by name", Err: err}
+	default:
+		return document, nil
+	}
+}
+
+func (r *Repository) DeleteDocument(ctx context.Context, login string, documentID string) error {
+	filter := bson.M{
+		"_id": documentID,
+		"grant": bson.M{
+			"$in": []string{login},
+		},
+	}
 
 	_, err := r.documentCollection.DeleteOne(ctx, filter)
 	if err != nil {

@@ -33,11 +33,16 @@ func (s *Service) Auth(user core.User) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), s.DefaultTimeout)
 	defer cancel()
 
-	if err := s.verifyPassword(ctx, user); err != nil {
+	userFromDB, err := s.UserRepo.User(ctx, user.Login)
+	if err != nil {
+		return "", fmt.Errorf("getting user: %w", err)
+	}
+
+	if err := s.verifyPassword(userFromDB, user); err != nil {
 		return "", err
 	}
 
-	accessToken, err := s.createAccessToken(user)
+	accessToken, err := s.createAccessToken(userFromDB)
 	if err != nil {
 		return "", err
 	}
@@ -74,12 +79,12 @@ func (s *Service) VerifyAccessToken(token string) error {
 }
 
 func (s *Service) checkUserByToken(ctx context.Context, tokenDetails jwt.MapClaims) error {
-	userID, ok := tokenDetails["user_id"].(string)
+	login, ok := tokenDetails["login"].(string)
 	if !ok {
-		return e.ErrInvalidToken
+		return &e.ErrInvalidToken{Msg: "invalid token"}
 	}
 
-	_, err := s.UserRepo.User(ctx, userID)
+	_, err := s.UserRepo.User(ctx, login)
 	if err != nil {
 		return e.ErrUserNotFound
 	}
@@ -88,7 +93,7 @@ func (s *Service) checkUserByToken(ctx context.Context, tokenDetails jwt.MapClai
 }
 
 func (s *Service) checkExpiredToken(ctx context.Context, token string, tokenDetails jwt.MapClaims) error {
-	exp := time.Unix(tokenDetails["exp"].(int64), 0)
+	exp := time.Unix(int64(tokenDetails["exp"].(float64)), 0)
 	now := time.Now()
 
 	if now.After(exp) {
@@ -99,12 +104,8 @@ func (s *Service) checkExpiredToken(ctx context.Context, token string, tokenDeta
 }
 
 func (s *Service) checkExistToken(ctx context.Context, token string) error {
-	accessToken, err := s.TokenRepo.Token(ctx, token)
-	if err != nil {
-		return fmt.Errorf("getting token: %w", err)
-	}
-	if len(accessToken.ID) == 0 {
-		return e.ErrInvalidToken
+	if _, err := s.TokenRepo.Token(ctx, token); err != nil {
+		return &e.ErrInvalidToken{Msg: "invalid token", Err: fmt.Errorf("getting token: %w", err)}
 	}
 
 	return nil
@@ -113,20 +114,21 @@ func (s *Service) checkExistToken(ctx context.Context, token string) error {
 func (s *Service) parseToken(token string) (jwt.MapClaims, error) {
 	tokenClaims := jwt.MapClaims{}
 
+	fmt.Println(s.SecretKey)
 	jwtToken, err := jwt.ParseWithClaims(
 		token,
 		tokenClaims,
-		func(jwtToken *jwt.Token) (interface{}, error) {
-			return s.SecretKey, nil
+		func(token *jwt.Token) (interface{}, error) {
+			return []byte(s.SecretKey), nil
 		},
 	)
 	if err != nil {
-		return jwt.MapClaims{}, fmt.Errorf("parsing access token: %w", err)
+		return jwt.MapClaims{}, &e.ErrInvalidToken{Msg: "invalid token", Err: fmt.Errorf("parsing access token: %w", err)}
 	}
 
 	tokenDetails, ok := jwtToken.Claims.(jwt.MapClaims)
 	if !ok {
-		return jwt.MapClaims{}, e.ErrInvalidToken
+		return jwt.MapClaims{}, &e.ErrInvalidToken{Msg: "invalid token"}
 	}
 
 	return tokenDetails, nil
@@ -137,7 +139,7 @@ func (s *Service) deleteTokenWithError(ctx context.Context, token string) error 
 		return fmt.Errorf("deleting access token: %w", err)
 	}
 
-	return e.ErrInvalidToken
+	return &e.ErrInvalidToken{Msg: "invalid token"}
 }
 
 func (s *Service) verifyNewUser(ctx context.Context, user core.User) error {
@@ -205,13 +207,8 @@ func (s *Service) validatePassword(pswd string) bool {
 	return isNumber && isLower && isUpper && isSymbol
 }
 
-func (s *Service) verifyPassword(ctx context.Context, user core.User) error {
-	userFromDB, err := s.UserRepo.User(ctx, user.Login)
-	if err != nil {
-		return fmt.Errorf("getting user: %w", err)
-	}
-
-	err = bcrypt.CompareHashAndPassword([]byte(userFromDB.Password), []byte(user.Password))
+func (s *Service) verifyPassword(userFromDB, user core.User) error {
+	err := bcrypt.CompareHashAndPassword([]byte(userFromDB.Password), []byte(user.Password))
 	if errors.Is(err, bcrypt.ErrMismatchedHashAndPassword) {
 		return e.ErrInvalidPassword
 	}
@@ -229,6 +226,7 @@ func (s *Service) createAccessToken(user core.User) (core.AccessToken, error) {
 
 	payload := jwt.MapClaims{
 		"user_id": user.ID,
+		"login":   user.Login,
 		"exp":     accessToken.EndTTl.Unix(),
 	}
 

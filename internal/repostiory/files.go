@@ -19,7 +19,9 @@ func NewFileRepository() *FileRepository {
 
 func (fr *FileRepository) SaveFile(userID string, fileName string, file []byte) error {
 	createFilesDirectory(fmt.Sprintf("%s/%s", filesDirectory, userID))
-	err := os.WriteFile(fileName, file, os.ModePerm)
+
+	filePath := fmt.Sprintf("%s/%s/%s", filesDirectory, userID, fileName)
+	err := os.WriteFile(filePath, file, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("writing to file: %w", err)
 	}
@@ -50,7 +52,7 @@ func (fr *FileRepository) FileExist(userID string, fileName string) bool {
 }
 
 func createFilesDirectory(dirPath string) {
-	if !pathExist(dirPath) {
+	if pathExist(dirPath) {
 		return
 	}
 
@@ -59,8 +61,8 @@ func createFilesDirectory(dirPath string) {
 
 func pathExist(path string) bool {
 	if _, err := os.Stat(path); err == nil {
-		return false
+		return true
 	}
 
-	return true
+	return false
 }
