@@ -23,6 +23,7 @@ type userService interface {
 	Register(user core.User) error
 	Auth(user core.User) (string, error)
 	VerifyAccessToken(token string) error
+	Logout(token string) error
 }
 
 type documentService interface {
@@ -54,6 +55,7 @@ func (h *Handler) Handler() *chi.Mux {
 	r.Route(addrPath, func(r chi.Router) {
 		r.Post(registerPath, h.register)
 		r.Get(authPath, h.auth)
+		r.Delete(authPath+"/{token}", h.logout)
 
 		r.Post(documentPath, h.createDocument)
 		r.Get(documentPath, h.documentsList)
@@ -82,6 +84,7 @@ func (h *Handler) sendErrorResponse(w http.ResponseWriter, err error) {
 func (h *Handler) handleError(err error) (int, string) {
 	var errFind *e.ErrFind
 	var errInsert *e.ErrInsert
+	var errDelete *e.ErrDelete
 	var errInvalidToken *e.ErrInvalidToken
 
 	switch {
@@ -90,13 +93,17 @@ func (h *Handler) handleError(err error) (int, string) {
 
 		return http.StatusUnauthorized, err.Error()
 	case errors.As(err, &errFind):
-		h.l.Error().Err(errFind.Unwrap()).Msg("failed to find user")
+		h.l.Error().Err(errFind.Unwrap()).Msg("failed to find")
 
 		return http.StatusNotFound, errFind.Error()
 	case errors.As(err, &errInsert):
-		h.l.Error().Err(errInsert.Unwrap()).Msg("failed to create user")
+		h.l.Error().Err(errInsert.Unwrap()).Msg("failed to create")
 
 		return http.StatusInternalServerError, errFind.Error()
+	case errors.As(err, &errDelete):
+		h.l.Error().Err(errDelete.Unwrap()).Msg("failed to delete")
+
+		return http.StatusInternalServerError, errDelete.Error()
 	case errors.Is(err, e.ErrInvalidLogin):
 		h.l.Error().Err(err).Msg("failed to verify login")
 

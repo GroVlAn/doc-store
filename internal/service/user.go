@@ -78,6 +78,18 @@ func (s *Service) VerifyAccessToken(token string) error {
 	return nil
 }
 
+func (s *Service) Logout(token string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), s.DefaultTimeout)
+	defer cancel()
+
+	err := s.TokenRepo.DeleteToken(ctx, token)
+	if err != nil {
+		return fmt.Errorf("deleting token: %w", err)
+	}
+
+	return nil
+}
+
 func (s *Service) checkUserByToken(ctx context.Context, tokenDetails jwt.MapClaims) error {
 	login, ok := tokenDetails["login"].(string)
 	if !ok {

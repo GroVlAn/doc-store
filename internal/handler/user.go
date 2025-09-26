@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/GroVlAn/doc-store/internal/core"
+	"github.com/go-chi/chi"
 )
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
@@ -66,6 +67,22 @@ func (h *Handler) auth(w http.ResponseWriter, r *http.Request) {
 	}{
 		Token: token,
 	}
+
+	h.sendResponse(w, res, http.StatusOK)
+}
+
+func (h *Handler) logout(w http.ResponseWriter, r *http.Request) {
+	token := chi.URLParam(r, "token")
+
+	err := h.userService.Logout(token)
+	if err != nil {
+		h.sendErrorResponse(w, err)
+
+		return
+	}
+
+	res := core.Response{}
+	res.Response = map[string]bool{token: true}
 
 	h.sendResponse(w, res, http.StatusOK)
 }
