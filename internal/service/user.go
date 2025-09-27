@@ -126,7 +126,6 @@ func (s *Service) checkExistToken(ctx context.Context, token string) error {
 func (s *Service) parseToken(token string) (jwt.MapClaims, error) {
 	tokenClaims := jwt.MapClaims{}
 
-	fmt.Println(s.SecretKey)
 	jwtToken, err := jwt.ParseWithClaims(
 		token,
 		tokenClaims,

@@ -34,6 +34,7 @@ func (s *Service) CreateDocument(document core.Document, file []byte) error {
 		if err != nil {
 			return fmt.Errorf("deleting document: %w", err)
 		}
+		s.Cache.Delete(s.Cache.GenerateKey(core.AddrCacheDocument, tokenDetails["user_id"].(string), document.ID))
 	}
 
 	err = s.DocumentRepo.CreateDocument(ctx, document)
@@ -49,6 +50,8 @@ func (s *Service) CreateDocument(document core.Document, file []byte) error {
 		return fmt.Errorf("creating file: %w", err)
 	}
 
+	s.Cache.Set(s.Cache.GenerateKey(core.AddrCacheDocument, tokenDetails["user_id"].(string), document.ID), document)
+
 	return nil
 }
 
@@ -61,10 +64,19 @@ func (s *Service) Document(token string, documentID string) (core.Document, stri
 		return core.Document{}, "", &e.ErrInvalidToken{Msg: "invalid token", Err: err}
 	}
 
-	document, err := s.DocumentRepo.Document(ctx, tokenDetails["login"].(string), documentID)
-	if err != nil {
-		return core.Document{}, "", e.ErrNoDocuments
+	var document core.Document
+
+	documentCache, ok := s.Cache.Get(s.Cache.GenerateKey(core.AddrCacheDocument, tokenDetails["user_id"].(string), documentID))
+	if ok {
+		document = documentCache.(core.Document)
+	} else {
+		document, err = s.DocumentRepo.Document(ctx, tokenDetails["login"].(string), documentID)
+		if err != nil {
+			return core.Document{}, "", e.ErrNoDocuments
+		}
 	}
+
+	s.Cache.Set(s.Cache.GenerateKey(core.AddrCacheDocument, tokenDetails["user_id"].(string), documentID), document)
 
 	file, err := s.FileRepo.File(tokenDetails["user_id"].(string), document.Name)
 	if err != nil {
@@ -115,6 +127,8 @@ func (s *Service) DeleteDocument(token string, documentID string) error {
 	if err != nil {
 		return fmt.Errorf("deleting document: %w", err)
 	}
+
+	s.Cache.Delete(s.Cache.GenerateKey(core.AddrCacheDocument, tokenDetails["user_id"].(string), documentID))
 
 	return nil
 }

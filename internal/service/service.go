@@ -33,9 +33,17 @@ type fileRepo interface {
 	FileExist(userID string, fileName string) bool
 }
 
+type cache interface {
+	Set(key string, value interface{})
+	Get(key string) (interface{}, bool)
+	Delete(key string)
+	GenerateKey(parts ...string) string
+}
+
 type Deps struct {
 	UserRepo       userRepo
 	TokenRepo      tokenRepo
+	Cache          cache
 	DocumentRepo   documentRepo
 	FileRepo       fileRepo
 	DefaultTimeout time.Duration

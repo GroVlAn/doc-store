@@ -9,12 +9,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/GroVlAn/doc-store/internal/caching"
 	"github.com/GroVlAn/doc-store/internal/config"
 	"github.com/GroVlAn/doc-store/internal/handler"
 	mongoclient "github.com/GroVlAn/doc-store/internal/mongo"
 	repository "github.com/GroVlAn/doc-store/internal/repostiory"
 	"github.com/GroVlAn/doc-store/internal/server"
 	"github.com/GroVlAn/doc-store/internal/service"
+	"github.com/patrickmn/go-cache"
 	"github.com/rs/zerolog"
 )
 
@@ -58,9 +60,14 @@ func main() {
 
 	fr := repository.NewFileRepository()
 
+	c := cache.New(cfg.Cache.DefaultExpiration, cfg.Cache.CleanupInterval)
+
+	caching := caching.New(c)
+
 	s := service.New(service.Deps{
 		UserRepo:       r,
 		TokenRepo:      r,
+		Cache:          caching,
 		DocumentRepo:   r,
 		FileRepo:       fr,
 		DefaultTimeout: cfg.Service.DefaultTimeout,

@@ -45,7 +45,7 @@ func (h *Handler) createDocument(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		defer file.Close()
 
-		b, err := io.ReadAll(file)
+		b, err = io.ReadAll(file)
 		if err != nil {
 			h.sendErrorResponse(w, err)
 

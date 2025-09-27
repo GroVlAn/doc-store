@@ -26,10 +26,16 @@ type Service struct {
 	SecretKey      string        `env:"SECRET_KEY" env-required:"true"`
 }
 
+type Cache struct {
+	DefaultExpiration time.Duration `yaml:"default_expiration"`
+	CleanupInterval   time.Duration `yaml:"cleanup_interval"`
+}
+
 type Config struct {
 	HTTP    HTTP    `yaml:"http"`
 	Service Service `yaml:"service"`
 	Mongo   Mongo   `yaml:"mongo"`
+	Cache   Cache   `yaml:"cache"`
 }
 
 func New(path string) (*Config, error) {

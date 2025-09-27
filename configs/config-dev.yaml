@@ -8,3 +8,7 @@ service:
   default_timeout: 5s
   hash_cost: 14
   token_end_ttl: 24h
+
+cache:
+  default_expiration: 5m
+  cleanup_interval: 10m
